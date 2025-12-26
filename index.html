@@ -10,6 +10,12 @@
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
         }
 
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             background: #0b0f14;
@@ -19,7 +25,7 @@
         .wrap {
             max-width: 980px;
             margin: 0 auto;
-            padding: 24px;
+            padding: clamp(12px, 3vw, 24px);
         }
 
         .grid {
@@ -28,7 +34,7 @@
             gap: 14px;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 860px) {
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -72,10 +78,12 @@
         .row {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .row>* {
             flex: 1;
+            min-width: 220px;
         }
 
         button {
@@ -157,6 +165,32 @@
             color: #b8c7dd;
             margin-top: 8px;
         }
+
+        @media (max-width: 520px) {
+            .card {
+                padding: 14px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .row {
+                flex-direction: column;
+            }
+
+            .result {
+                font-size: 30px;
+            }
+
+            pre {
+                max-height: 200px;
+            }
+
+            button {
+                padding: 12px;
+            }
+        }
     </style>
 </head>
 
@@ -165,7 +199,8 @@
         <div class="card" style="margin-bottom:14px;">
             <h1>Dice Roller — Sala Online (Realtime)</h1>
             <p>Todo mundo na mesma <b>sala</b> vê as rolagens em tempo real. RNG forte com
-                <code>crypto.getRandomValues</code>.</p>
+                <code>crypto.getRandomValues</code>.
+            </p>
             <div class="row">
                 <div>
                     <label>Sala (room)</label>
