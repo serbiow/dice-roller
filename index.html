@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dice Roller — Sala Online</title>
+    <style>
+        :root {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        }
+
+        body {
+            margin: 0;
+            background: #0b0f14;
+            color: #e8eef7;
+        }
+
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: #121a24;
+            border: 1px solid #1e2a3a;
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+
+        p {
+            margin: 0 0 16px;
+            color: #b8c7dd;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #b8c7dd;
+            margin: 10px 0 6px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #263449;
+            background: #0f1520;
+            color: #e8eef7;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .row>* {
+            flex: 1;
+        }
+
+        button {
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #2a3a52;
+            background: #1b2a40;
+            color: #e8eef7;
+            cursor: pointer;
+            font-weight: 700;
+            width: 100%;
+        }
+
+        button:hover {
+            filter: brightness(1.08);
+        }
+
+        .result {
+            font-size: 34px;
+            font-weight: 900;
+            margin: 12px 0 10px;
+        }
+
+        pre {
+            margin: 0;
+            padding: 12px;
+            border-radius: 12px;
+            background: #0f1520;
+            border: 1px solid #263449;
+            color: #d6e3f7;
+            overflow: auto;
+            line-height: 1.45;
+            max-height: 240px;
+        }
+
+        .err {
+            color: #ffb4b4;
+            margin-top: 10px;
+        }
+
+        .feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .msg {
+            border: 1px solid #263449;
+            background: #0f1520;
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
+        .msg .top {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            color: #b8c7dd;
+            font-size: 12px;
+        }
+
+        .msg .mid {
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .msg .mid b {
+            color: #e8eef7;
+        }
+
+        .msg .tot {
+            margin-top: 6px;
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .small {
+            font-size: 12px;
+            color: #b8c7dd;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="card" style="margin-bottom:14px;">
+            <h1>Dice Roller — Sala Online (Realtime)</h1>
+            <p>Todo mundo na mesma <b>sala</b> vê as rolagens em tempo real. RNG forte com
+                <code>crypto.getRandomValues</code>.</p>
+            <div class="row">
+                <div>
+                    <label>Sala (room)</label>
+                    <input id="room" value="mesa-1" />
+                </div>
+                <div>
+                    <label>Seu nome</label>
+                    <input id="player" value="Jogador" />
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <label>Expressão (ex: 1d20+4+1d4+2)</label>
+                <input id="expr" value="1d20+4+1d4+2" autocomplete="off" spellcheck="false" />
+                <div style="margin-top:10px;">
+                    <button id="rollBtn">Rolar e enviar pra sala</button>
+                </div>
+
+                <div class="result" id="total">—</div>
+                <pre id="detail">—</pre>
+                <div class="err" id="err"></div>
+
+                <div class="small">
+                    Dica: compartilhe o link e diga pros amigos colocarem a mesma “Sala”.
+                </div>
+            </div>
+
+            <div class="card">
+                <h1 style="font-size:18px;margin-bottom:10px;">Feed da sala</h1>
+                <div id="feed" class="feed"></div>
+                <div class="err" id="err2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase JS via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // ======== CONFIGURE AQUI ========
+        const SUPABASE_URL = "https://yxadsgyrudubxlosweha.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4YWRzZ3lydWR1Ynhsb3N3ZWhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3ODkyOTUsImV4cCI6MjA4MjM2NTI5NX0.NIk4sI6Vs6s16S1Tw2VAJPKf1xXEgxrG0K--49UE7wI";
+        // ================================
+
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // RNG criptograficamente forte + sem viés (rejection sampling)
+        function randIntInclusive(min, max) {
+            const range = max - min + 1;
+            const maxUint32 = 0xFFFFFFFF;
+            const limit = Math.floor((maxUint32 + 1) / range) * range;
+            const buf = new Uint32Array(1);
+            while (true) {
+                crypto.getRandomValues(buf);
+                const x = buf[0];
+                if (x < limit) return min + (x % range);
+            }
+        }
+        function rollDie(sides) { return randIntInclusive(1, sides); }
+
+        function tokenize(exprRaw) {
+            const expr = exprRaw.replace(/\s+/g, "").toLowerCase();
+            if (!expr) throw new Error("Digite uma expressão.");
+            if (!/^[0-9d+\-]+$/.test(expr)) throw new Error("Use apenas números, d, + e -.");
+            const parts = expr.match(/[+\-]?[^+\-]+/g) || [];
+            return parts.map(p => (p[0] === '+' || p[0] === '-') ? p : ('+' + p));
+        }
+
+        function parseTerm(termWithSign) {
+            const sign = termWithSign[0] === '-' ? -1 : 1;
+            const term = termWithSign.slice(1);
+
+            const diceMatch = term.match(/^(\d*)d(\d+)$/);
+            if (diceMatch) {
+                const n = diceMatch[1] === "" ? 1 : Number(diceMatch[1]);
+                const m = Number(diceMatch[2]);
+                if (!Number.isInteger(n) || !Number.isInteger(m) || n <= 0 || m <= 0) throw new Error(`Dado inválido: ${termWithSign}`);
+                if (n > 2000) throw new Error("Muitos dados de uma vez (limite: 2000).");
+                if (m > 1000000) throw new Error("Muitos lados (limite: 1.000.000).");
+                return { type: "dice", sign, n, m };
+            }
+
+            if (/^\d+$/.test(term)) return { type: "num", sign, value: Number(term) };
+            throw new Error(`Termo inválido: ${termWithSign}`);
+        }
+
+        function evaluate(exprRaw) {
+            const tokens = tokenize(exprRaw);
+            const parsed = tokens.map(parseTerm);
+            let total = 0;
+            const lines = [`Expressão: ${exprRaw}`];
+
+            for (const t of parsed) {
+                if (t.type === "num") {
+                    const v = t.sign * t.value;
+                    total += v;
+                    lines.push(`${t.sign === 1 ? '+' : '-'} ${t.value} => ${v >= 0 ? '+' : ''}${v}`);
+                } else {
+                    const rolls = [];
+                    let sum = 0;
+                    for (let i = 0; i < t.n; i++) {
+                        const r = rollDie(t.m);
+                        rolls.push(r);
+                        sum += r;
+                    }
+                    const signedSum = t.sign * sum;
+                    total += signedSum;
+                    lines.push(`${t.sign === 1 ? '+' : '-'} ${t.n}d${t.m} => [${rolls.join(", ")}] soma=${sum} aplicado=${signedSum >= 0 ? '+' : ''}${signedSum}`);
+                }
+            }
+
+            lines.push(`TOTAL = ${total}`);
+            return { total, detail: lines.join("\n") };
+        }
+
+        const roomEl = document.getElementById("room");
+        const playerEl = document.getElementById("player");
+        const exprEl = document.getElementById("expr");
+        const rollBtn = document.getElementById("rollBtn");
+        const totalEl = document.getElementById("total");
+        const detailEl = document.getElementById("detail");
+        const errEl = document.getElementById("err");
+        const err2El = document.getElementById("err2");
+        const feedEl = document.getElementById("feed");
+
+        function fmtTime(iso) {
+            const d = new Date(iso);
+            return d.toLocaleString("pt-BR");
+        }
+
+        function renderMsg(row, { prepend = false } = {}) {
+            const div = document.createElement("div");
+            div.className = "msg";
+            div.innerHTML = `
+      <div class="top">
+        <span><b>${escapeHtml(row.player)}</b> • sala <b>${escapeHtml(row.room)}</b></span>
+        <span>${fmtTime(row.created_at)}</span>
+      </div>
+      <div class="mid">Expr: <b>${escapeHtml(row.expr)}</b></div>
+      <div class="tot">Total: ${row.total}</div>
+      <details style="margin-top:6px;">
+        <summary style="cursor:pointer;color:#b8c7dd;">Detalhes</summary>
+        <pre style="margin-top:8px;max-height:180px;">${escapeHtml(row.detail)}</pre>
+      </details>
+    `;
+            if (prepend) feedEl.prepend(div);
+            else feedEl.appendChild(div);
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        async function loadRecent() {
+            err2El.textContent = "";
+            feedEl.innerHTML = "";
+            const room = roomEl.value.trim();
+            if (!room) return;
+
+            const { data, error } = await sb
+                .from("rolls")
+                .select("*")
+                .eq("room", room)
+                .order("created_at", { ascending: false })
+                .limit(30);
+
+            if (error) {
+                err2El.textContent = error.message;
+                return;
+            }
+
+            data.reverse().forEach(r => renderMsg(r));
+        }
+
+        let channel = null;
+
+        async function subscribeRoom() {
+            err2El.textContent = "";
+            const room = roomEl.value.trim();
+            if (!room) return;
+
+            if (channel) {
+                await sb.removeChannel(channel);
+                channel = null;
+            }
+
+            await loadRecent();
+
+            channel = sb
+                .channel("rolls-room-" + room)
+                .on(
+                    "postgres_changes",
+                    { event: "INSERT", schema: "public", table: "rolls", filter: `room=eq.${room}` },
+                    payload => {
+                        renderMsg(payload.new, { prepend: true });
+                        // limita feed na tela
+                        while (feedEl.children.length > 50) feedEl.removeChild(feedEl.lastChild);
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === "SUBSCRIBED") {
+                        // ok
+                    }
+                });
+        }
+
+        roomEl.addEventListener("change", subscribeRoom);
+
+        async function sendRoll() {
+            errEl.textContent = "";
+            const room = roomEl.value.trim();
+            const player = playerEl.value.trim();
+            const expr = exprEl.value.trim();
+
+            if (!room) { errEl.textContent = "Defina uma sala."; return; }
+            if (!player) { errEl.textContent = "Digite seu nome."; return; }
+
+            try {
+                const { total, detail } = evaluate(expr);
+                totalEl.textContent = total;
+                detailEl.textContent = detail;
+
+                const { error } = await sb.from("rolls").insert([{
+                    room, player, expr, total, detail
+                }]);
+
+                if (error) errEl.textContent = error.message;
+            } catch (e) {
+                totalEl.textContent = "—";
+                detailEl.textContent = "—";
+                errEl.textContent = e.message || String(e);
+            }
+        }
+
+        rollBtn.addEventListener("click", sendRoll);
+        exprEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendRoll(); });
+
+        // inicia
+        subscribeRoom();
+    </script>
+</body>
+
+</html>
