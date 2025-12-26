@@ -166,6 +166,61 @@
             margin-top: 8px;
         }
 
+        /* =========================================================
+     FIX REAL: Grid não estoura com conteúdo gigante (min-width:0)
+     + barras horizontais quando necessário
+     ========================================================= */
+
+        /* Pulo do gato: em CSS Grid, filhos precisam de min-width:0 para encolher */
+        .grid>.card {
+            min-width: 0;
+        }
+
+        /* Evita que qualquer bloco dentro force largura além da coluna */
+        .feed,
+        .msg,
+        .result,
+        #detail {
+            min-width: 0;
+        }
+
+        /* Campos “curtos” (não devem quebrar linha): Resultado / Expr no feed / Total no feed */
+        .result,
+        .msg .mid,
+        .msg .tot {
+            max-width: 100%;
+            overflow-x: auto;
+            /* barra horizontal */
+            overflow-y: hidden;
+            white-space: nowrap;
+            /* não quebra linha */
+            display: block;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Destaque da expressão (b) não pode forçar layout também */
+        .msg .mid b {
+            display: inline-block;
+            max-width: 100%;
+            white-space: nowrap;
+        }
+
+        /* Detalhes (pre) já são scrolláveis, mas garantimos que não “empurrem” o grid */
+        #detail,
+        .msg details pre {
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: pre;
+            /* mantém o formato do pre */
+        }
+
+        /* (opcional) espaço pra scrollbar não colar no texto */
+        .msg .tot,
+        .result {
+            padding-bottom: 2px;
+        }
+
         @media (max-width: 520px) {
             .card {
                 padding: 14px;
@@ -197,7 +252,7 @@
 <body>
     <div class="wrap">
         <div class="card" style="margin-bottom:14px;">
-            <h1>Dice Roller — Sala Online (Realtime) - PENES</h1>
+            <h1>Dice Roller — Sala Online (Realtime)</h1>
             <p>Todo mundo na mesma <b>sala</b> vê as rolagens em tempo real. RNG forte com
                 <code>crypto.getRandomValues</code>.
             </p>
@@ -373,7 +428,7 @@
                 return;
             }
 
-            data.reverse().forEach(r => renderMsg(r));
+            data.forEach(r => renderMsg(r));
         }
 
         let channel = null;
