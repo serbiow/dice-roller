@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Dice Roller — Sala Online</title>
+
     <style>
         :root {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
@@ -79,6 +80,7 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            align-items: flex-end;
         }
 
         .row>* {
@@ -167,16 +169,14 @@
         }
 
         /* =========================================================
-     FIX REAL: Grid não estoura com conteúdo gigante (min-width:0)
-     + barras horizontais quando necessário
-     ========================================================= */
+       FIX REAL: Grid não estoura com conteúdo gigante (min-width:0)
+       + barras horizontais quando necessário
+       ========================================================= */
 
-        /* Pulo do gato: em CSS Grid, filhos precisam de min-width:0 para encolher */
         .grid>.card {
             min-width: 0;
         }
 
-        /* Evita que qualquer bloco dentro force largura além da coluna */
         .feed,
         .msg,
         .result,
@@ -184,41 +184,83 @@
             min-width: 0;
         }
 
-        /* Campos “curtos” (não devem quebrar linha): Resultado / Expr no feed / Total no feed */
         .result,
         .msg .mid,
         .msg .tot {
             max-width: 100%;
             overflow-x: auto;
-            /* barra horizontal */
             overflow-y: hidden;
             white-space: nowrap;
-            /* não quebra linha */
             display: block;
             -webkit-overflow-scrolling: touch;
         }
 
-        /* Destaque da expressão (b) não pode forçar layout também */
         .msg .mid b {
             display: inline-block;
             max-width: 100%;
             white-space: nowrap;
         }
 
-        /* Detalhes (pre) já são scrolláveis, mas garantimos que não “empurrem” o grid */
         #detail,
         .msg details pre {
             max-width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             white-space: pre;
-            /* mantém o formato do pre */
         }
 
-        /* (opcional) espaço pra scrollbar não colar no texto */
         .msg .tot,
         .result {
             padding-bottom: 2px;
+        }
+
+        /* =========================================================
+       Toggle do som
+       ========================================================= */
+        .soundToggle {
+            min-width: 220px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 54px;
+            height: 30px;
+        }
+
+        .switch input {
+            display: none;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #263449;
+            border: 1px solid #2a3a52;
+            border-radius: 999px;
+            transition: 0.2s ease;
+        }
+
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 24px;
+            width: 24px;
+            left: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e8eef7;
+            border-radius: 999px;
+            transition: 0.2s ease;
+        }
+
+        .switch input:checked+.slider {
+            background: #1b2a40;
+        }
+
+        .switch input:checked+.slider:before {
+            transform: translate(24px, -50%);
         }
 
         @media (max-width: 520px) {
@@ -232,6 +274,7 @@
 
             .row {
                 flex-direction: column;
+                align-items: stretch;
             }
 
             .result {
@@ -256,14 +299,25 @@
             <p>Todo mundo na mesma <b>sala</b> vê as rolagens em tempo real. RNG forte com
                 <code>crypto.getRandomValues</code>.
             </p>
+
             <div class="row">
                 <div>
                     <label>Sala (room)</label>
                     <input id="room" value="mesa-1" />
                 </div>
+
                 <div>
                     <label>Seu nome</label>
                     <input id="player" value="Jogador" />
+                </div>
+
+                <div class="soundToggle">
+                    <label>Som ao rolar</label>
+                    <label class="switch" title="Ligar/desligar som de rolagem">
+                        <input type="checkbox" id="soundEnabled" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <div class="small" style="margin-top:6px;"></div>
                 </div>
             </div>
         </div>
@@ -382,32 +436,56 @@
         const err2El = document.getElementById("err2");
         const feedEl = document.getElementById("feed");
 
+        // ======== SOM DA ROLAGEM ========
+        const soundToggleEl = document.getElementById("soundEnabled");
+
+        const SOUND_KEY = "diceSoundEnabled";
+        const saved = localStorage.getItem(SOUND_KEY);
+        if (saved !== null) soundToggleEl.checked = saved === "1";
+
+        soundToggleEl.addEventListener("change", () => {
+            localStorage.setItem(SOUND_KEY, soundToggleEl.checked ? "1" : "0");
+        });
+
+        const diceAudio = new Audio("assets/dice-sound.mp3");
+        diceAudio.preload = "auto";
+
+        function playDiceSound() {
+            if (!soundToggleEl.checked) return;
+            try {
+                diceAudio.currentTime = 0;
+                const p = diceAudio.play();
+                if (p && typeof p.catch === "function") p.catch(() => { });
+            } catch (_) { }
+        }
+        // ================================
+
         function fmtTime(iso) {
             const d = new Date(iso);
             return d.toLocaleString("pt-BR");
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
         function renderMsg(row, { prepend = false } = {}) {
             const div = document.createElement("div");
             div.className = "msg";
             div.innerHTML = `
-      <div class="top">
-        <span><b>${escapeHtml(row.player)}</b> • sala <b>${escapeHtml(row.room)}</b></span>
-        <span>${fmtTime(row.created_at)}</span>
-      </div>
-      <div class="mid">Expr: <b>${escapeHtml(row.expr)}</b></div>
-      <div class="tot">Total: ${row.total}</div>
-      <details style="margin-top:6px;">
-        <summary style="cursor:pointer;color:#b8c7dd;">Detalhes</summary>
-        <pre style="margin-top:8px;max-height:180px;">${escapeHtml(row.detail)}</pre>
-      </details>
-    `;
+        <div class="top">
+          <span><b>${escapeHtml(row.player)}</b> • sala <b>${escapeHtml(row.room)}</b></span>
+          <span>${fmtTime(row.created_at)}</span>
+        </div>
+        <div class="mid">Expr: <b>${escapeHtml(row.expr)}</b></div>
+        <div class="tot">Total: ${row.total}</div>
+        <details style="margin-top:6px;">
+          <summary style="cursor:pointer;color:#b8c7dd;">Detalhes</summary>
+          <pre style="margin-top:8px;max-height:180px;">${escapeHtml(row.detail)}</pre>
+        </details>
+      `;
             if (prepend) feedEl.prepend(div);
             else feedEl.appendChild(div);
-        }
-
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
         async function loadRecent() {
@@ -420,7 +498,7 @@
                 .from("rolls")
                 .select("*")
                 .eq("room", room)
-                .order("created_at", { ascending: false })
+                .order("created_at", { ascending: false }) // mais recente primeiro
                 .limit(30);
 
             if (error) {
@@ -428,6 +506,7 @@
                 return;
             }
 
+            // já vem do mais recente pro mais antigo
             data.forEach(r => renderMsg(r));
         }
 
@@ -451,16 +530,13 @@
                     "postgres_changes",
                     { event: "INSERT", schema: "public", table: "rolls", filter: `room=eq.${room}` },
                     payload => {
-                        renderMsg(payload.new, { prepend: true });
-                        // limita feed na tela
+                        renderMsg(payload.new, { prepend: true }); // novas sempre no topo
+                        playDiceSound(); // toca quando chega uma rolagem nova
+
                         while (feedEl.children.length > 50) feedEl.removeChild(feedEl.lastChild);
                     }
                 )
-                .subscribe((status) => {
-                    if (status === "SUBSCRIBED") {
-                        // ok
-                    }
-                });
+                .subscribe();
         }
 
         roomEl.addEventListener("change", subscribeRoom);
